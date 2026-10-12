@@ -1,0 +1,49 @@
+name: Author lazy-import scope proof
+
+on:
+  push:
+    branches: [validation/lazy-import-scope-oct12]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'jabrailkhalil/etils'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux311, linux312, mac313, win314]
+        role: [head, base]
+        include:
+          - {platform: linux311, os: ubuntu-latest, python: '3.11'}
+          - {platform: linux312, os: ubuntu-latest, python: '3.12'}
+          - {platform: mac313, os: macos-latest, python: '3.13'}
+          - {platform: win314, os: windows-latest, python: '3.14'}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Preserve raw Git bytes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install real test dependencies
+        run: >-
+          python -m pip install -e ".[epy,epath,ecolab]"
+          tensorflow-datasets==4.9.10 fiddle==0.3.0
+          pytest==9.1.1 pyink==26.5.1
+      - name: Verify source, complete epy suite and native controls
+        run: python author_validation_etils.py ${{ matrix.role }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scope-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.role }}
+          path: |
+            author-etils-tests.xml
+            author-etils-proof.json
+            etils-mutant-*.xml
